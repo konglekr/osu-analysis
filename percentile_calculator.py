@@ -5,6 +5,8 @@ import numpy as np
 import pickle
 import matplotlib.pyplot as plt
 import matplotlib
+import io
+import base64
 
 matplotlib.use('Agg')
 plt.style.use("dark_background")
@@ -41,14 +43,21 @@ def find_reverse_percentile(desired, change):
     return find_percentile(change, desired)
 
 def plot_user_stats(all_pp, all_time, user_pp, user_time, my_pct, user_name):
+    img1 = io.BytesIO()
+
     plt.clf()
     plt.scatter(all_time, all_pp, s = .1, c = 'cornflowerblue', label = "Other players")
     plt.scatter(user_time, user_pp, s = 10, c = 'red', label = 'You')
-    print(user_time)
     plt.title(f"{user_name}'s PPP: {my_pct * 100:.2f}%")
     plt.xlabel("Playing Time (Hr)")
     plt.ylabel("Performance Points")
-    plt.savefig('static/images/pp_graph.png')
+    plt.savefig(img1, format='png')
+    img1.seek(0)
+    
+    img1 = base64.b64encode(img1.getvalue()).decode()
+
+    img2 = io.BytesIO()
+
     plt.clf()
     x = np.arange(0, 20000, 1000)
     y = [optimize.minimize_scalar(find_reverse_percentile, args = (rev_corr(user_time, i)), tol = .00001).x for i in x]
@@ -60,7 +69,12 @@ def plot_user_stats(all_pp, all_time, user_pp, user_time, my_pct, user_name):
     plt.title(f"PPP Distribution at time: {user_time:.2f} hrs")
     plt.xlabel("Performance Points")
     plt.ylabel("Percentile")
-    plt.savefig('static/images/pp_distribution.png')
+    plt.savefig(img2, format='png')
+    img2.seek(0)
+    
+    img2 = base64.b64encode(img2.getvalue()).decode()
+
+    return "data:image/png;base64,{}".format(img1), "data:image/png;base64,{}".format(img2)
 
 
 def stats(user):
@@ -71,4 +85,4 @@ def stats(user):
         user_data = api.user(user).statistics
     change = rev_corr(user_data.play_time/3600, user_data.pp)
     my_pct = optimize.minimize_scalar(find_reverse_percentile, args = (change), tol = .00001)
-    plot_user_stats(pp, time, user_data.pp, user_data.play_time / 3600, my_pct.x, user)
+    return plot_user_stats(pp, time, user_data.pp, user_data.play_time / 3600, my_pct.x, user)
